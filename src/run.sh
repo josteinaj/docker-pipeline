@@ -1,7 +1,8 @@
 #!/bin/bash
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+CONTAINER_ID="`cat /proc/self/cgroup | grep "/docker/" | head -n 1 | sed 's/.*\///g'`"
 
-echo $DIR
-pwd
-ls
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd $DIR
+
+exec $DIR/run.py "$1" "$CONTAINER_ID" "${@:2}"

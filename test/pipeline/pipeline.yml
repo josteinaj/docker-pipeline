@@ -1,0 +1,22 @@
+name: Example Pipeline
+pipeline:
+  - test: input-1
+    expect: expect-1
+  - test: input-2
+    expect: expect-2
+    
+  - dockerfile: square
+  
+  - test: input-1
+    expect: expect-1
+  - test: input-2
+    expect: expect-4
+    status: success
+    
+  - dockerfile: square
+  
+  - test: input-1
+    expect: expect-1
+  - test: input-2
+    expect: expect-8
+    status: success
