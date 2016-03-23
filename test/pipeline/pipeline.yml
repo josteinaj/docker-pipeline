@@ -18,5 +18,5 @@ pipeline:
   - test: input-1
     expect: expect-1
   - test: input-2
-    expect: expect-8
+    expect: expect-16
     status: success

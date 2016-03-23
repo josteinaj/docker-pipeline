@@ -7,6 +7,7 @@ from slacker import Slacker
 import yaml
 import gettext
 import docker
+import hashlib
 
 global config
 global translation
@@ -109,7 +110,9 @@ class Common:
         logs = docker_client.logs(container=container)
         docker_client.remove_container(container=container)
         
-        Common.message(logs.decode('utf-8'))
+        log = logs.decode('utf-8')
+        if log:
+            Common.message(log)
 
     @staticmethod
     def host_path(path):
@@ -117,4 +120,16 @@ class Common:
         for mount in container_details['Mounts']:
             if 'Source' in mount and 'Destination' in mount and path.startswith(mount['Destination']):
                 return mount['Source']+path[len(mount['Destination']):]
+        return None
+
+    @staticmethod
+    def hashfile(path):
+        with open(path, 'rb') as f:
+            hasher = hashlib.sha256()
+            blocksize = 65536
+            buf = f.read(blocksize)
+            while len(buf) > 0:
+                hasher.update(buf)
+                buf = f.read(blocksize)
+            return hasher.digest()
         return None
