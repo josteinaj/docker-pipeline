@@ -8,25 +8,25 @@ of data processing pipelines.
 ## Roadmap
 
 v0.1:
-- [ ] Everything is defined in a single YAML file.
-- [ ] No dependencies other than Docker. Is itself a docker image.
-- [ ] Chain docker images to create data pipelines. (i.e. parse yaml and chain list of steps)
-- [ ] Basic testing with `assert`
-- [ ] The `dockerfile` instruction (useful while developing)
+- [x] Everything is defined in a single YAML file.
+- [x] No dependencies other than Docker. Is itself a docker image.
+- [x] Chain docker images to create data pipelines. (i.e. parse yaml and chain list of steps)
+- [x] Testing with `test`
+- [x] The `dockerfile` instruction (useful while developing)
 
 v0.2:
-- [ ] Thorough testing with `test`
+- [ ] Testing with `assert`
 
 v0.3:
-- [ ] Watches a folder for new input files and directories. Automatically passes it into the pipeline.
-
-v0.4:
 - [ ] full support for pipeline definition grammar
   - [ ] support `if`, `elsif` and `else`
   - [ ] support `foreach`
   - [ ] support `synchronized`
 
 v0.4:
+- [ ] Watches a folder for new input files and directories. Automatically passes it into the pipeline.
+
+v0.5:
 - [ ] Send messages to Slack channel.
 - [ ] View live-updated status webpage
   - [ ] showing which containers are running at each step
@@ -34,13 +34,13 @@ v0.4:
   - [ ] how much CPU/memory is used by each docker container
   - [ ] showing last 10 processed items
 
-v0.5:
+v0.6:
 - [ ] Pipelines with no input can be triggered with HTTP POST/GET requests.
 
-v0.6:
+v0.7:
 - [ ] Ability to delegate processing to other servers than localhost.
 
-v0.7:
+v0.8:
 - [ ] Support multiple pipelines
 
 ## Docker image requirements
