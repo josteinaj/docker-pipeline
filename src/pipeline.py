@@ -25,16 +25,30 @@ class Pipeline:
                 if 'dockerfile' in step:
                     image_id = Common.docker_build(os.path.dirname(path)+"/"+step['dockerfile']+"/")
                     self.steps.append({'image':{'name':step['dockerfile'], 'id':image_id}})
+                    
                 elif 'test' in step:
-                    if not step['test'] in self.tests:
-                        self.tests[step['test']] = {}
-                    self.tests[step['test']][len(self.steps)] = step
-                    step['name'] = step['test']
-                    self.steps.append({'test':step})
+                    if not 'input' in step['test']:
+                        step['test']['input'] = '*'
+                    test_input = step['test']['input']
+                    
+                    if not test_input in self.tests:
+                        self.tests[test_input] = {}
+                    self.tests[test_input][len(self.steps)] = step
+                    step['test']['name'] = test_input
+                    self.steps.append(step)
+                
+                elif 'assert' in step:
+                    assertion = { 'test': { 'name': '*', 'input': '*', 'status': step['assert'] }}
+                    if not '*' in self.tests:
+                        self.tests['*'] = {}
+                    self.tests['*'][len(self.steps)] = assertion
+                    self.steps.append(assertion)
+                
                 else:
                     Common.message("WARNING: unknown step type: dictionary with key '"+list(step.keys())[0]+"' (skipping!)")
             else:
                 self.steps.append({'image':{'name':step, 'id':step}})
+        pprint(self.steps)
 
     def run(self, config_path, input_path, output_path, status_path, test=None):
         temp_path = tempfile.mkdtemp(prefix='pipeline-')
@@ -77,8 +91,8 @@ class Pipeline:
                 position += 1
             
             elif step_type == 'test':
-                if step['name'] == test:
-                    Common.message('   -- Evaluating test')
+                if step['name'] == test or test == '*' or step['name'] == '*':
+                    Common.message('   -- Evaluating test: '+step['name'])
                     if 'expect' in step:
                         expected_files = {}
                         actual_files = {}
@@ -135,6 +149,8 @@ class Pipeline:
     
     def run_tests(self):
         for test_name in self.tests:
+            if test_name == '*':
+                continue
             Common.message("\n---\n"+_('Running test:')+' '+test_name+"\n")
             
             test = self.tests[test_name]

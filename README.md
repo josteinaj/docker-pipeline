@@ -15,7 +15,8 @@ v0.1:
 - [x] The `dockerfile` instruction (useful while developing)
 
 v0.2:
-- [ ] Testing with `assert`
+- [x] Tests with name `*` should run for all tests
+- [x] Testing with `assert` as alias for `test` with `*`  and `status`
 
 v0.3:
 - [ ] full support for pipeline definition grammar
@@ -102,33 +103,50 @@ Combine it with `if` to conditionally stop execution.
 To test pipelines, use the `assert` and `test` instructions.
 These instructions are ignored during normal use.
 
-The `assert` instruction is used to check the status at this
-point in the execution, and works similar to the `if` instruction
-except that it does not have a sub-pipeline.
+The `tests` subdirectory in the directory containing the `pipeline.yml`
+file can contain test data. The directories inside this
+test data directory can be referenced using the `test` instruction:
 
-When testing, a test data directory is mounted as `/mnt/test-data`
-in the docker-pipeline container. The directories inside this
-test data directory can be used with the `test` instruction.
+```
+  - test:
+      input: input-1
+      expect: expect-1
+```
 
-The `test` instruction takes the name of the input test data
-folder as a string after `test`, and the value is a map with
-two values; `expect`, and `status`. The `expect` is the name of
-a directory in the test data directory, and the `status` is the
-expected status as this point in the execution. The `iteration`
-is the name of the input file used for this iteration, if the
-`test` is inside a `foreach`. Both `expected`, `status` and
-`iteration` is optional, but if neither is present the test
-will have no effect.
+In this example, the `input-1` and `expect-1` are directories inside
+the `tests` directory of your project.
 
-When testing, the pipeline is run once for every unique input
+`status` can be used to declare the expected status as this point in the execution:
+
+```
+  - test:
+      input: input-1
+      status: success
+```
+
+`context` can be used to evaluate this test only if the name of the
+context matches the given `context`. This is especially useful inside a `foreach`.
+
+The `assert` instruction is a syntactic shortcut for checking the status
+at this point in the execution. The following `assert` and `test` is equivalent:
+
+```
+  - test:
+      input: '*'
+      status: success
+  
+  - assert: success
+```
+
+When testing, the pipeline is run once for every unique `input`
 directory used in `test` instructions in the pipeline. `test`
 instructions using a different input directory than the one
 currently being tested are skipped; otherwise the `test`
 succeeds only if:
-- the files in the `expected` directory is exactly
+- if `expected` is used: the files in the `expected` directory is exactly
   the same as the ones the the output directory of the
   preceding step at this point in the execution.
-- the status at this point in the execution is the
+- if `status` is used: the status at this point in the execution is the
   one stated in this test.
 
 ### Example pipeline
@@ -150,10 +168,11 @@ pipeline:
     - my/image1
     
     # Use test for testing pipelines
-    - test input-1:
-      expect: output-1
-      iteration: file1
-      status: success
+    - test:
+        input: input-1
+        expect: output-1
+        iteration: file1
+        status: success
   
   # After foreach, all files will be joined back into
   # one folder in directories with the same names as when
@@ -202,7 +221,12 @@ pipeline:
 ## Running Docker Pipeline
 
 ```
-docker run -v /my/config/dir:/mnt/config:ro -v /my/input/dir:/mnt/input josteinaj/docker-pipeline
+docker run \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /my/pipeline/dir:/mnt/pipeline:ro \
+    -v /my/config/dir:/mnt/config:ro \
+    josteinaj/docker-pipeline /my/pipeline/dir
+    # optionally append the argument 'test' to run tests
 ```
 
 - The directory mounted as `/mnt/config`, if present, will be
@@ -211,3 +235,7 @@ docker run -v /my/config/dir:/mnt/config:ro -v /my/input/dir:/mnt/input josteina
 - The directory mounted as `/mnt/input`, if present, will be
   monitored for new files and directories. Any new files or
   directories will be sent one-by-one to the pipeline for processing.
+  Each file or directory will be mounted as `/mnt/input/file-or-dir-name`
+  at the start of the pipeline.
+- `/var/run/docker.sock` needs to be mounted so that
+  docker-pipeline is able to run docker containers.
