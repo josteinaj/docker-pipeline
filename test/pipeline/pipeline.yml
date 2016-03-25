@@ -19,7 +19,7 @@ pipeline:
   - test:
       input: '*'
       status: success
-  - assert: success2
+  - assert: success
     
   - dockerfile: square
   
@@ -30,3 +30,44 @@ pipeline:
       input: input-2
       expect: expect-16
       status: success
+  
+  - dockerfile: fibonacci
+  
+  - test:
+      input: input-1
+      expect: expect-fib-0
+  - test:
+      input: input-2
+      expect: expect-fib-13
+  
+  - foreach:
+      - test:
+          input: input-1
+          expect: expect-fib-0
+      - test:
+          input: input-2
+          context: 0.txt
+          expect: expect-digit-0
+      - test:
+          input: input-2
+          context: 5.txt
+          expect: expect-digit-5
+      - test:
+          input: input-3
+          context: 5.txt
+          expect: expect-digit-5
+      - dockerfile: identity
+  
+  - test:
+      input: input-2
+      expect: expect-fib-13-folded
+  
+  - unfold: 1
+  
+  - test:
+      input: input-1
+      expect: expect-fib-0
+  - test:
+      input: input-2
+      expect: expect-fib-13
+   

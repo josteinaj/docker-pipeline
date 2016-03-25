@@ -14,8 +14,8 @@ fi
 
 docker build . >/dev/null
 BUILDID="`docker build . | grep "." | tail -n 1 | sed 's/.* //'`"
-echo
-echo
+#echo
+#echo
 #set -x
 docker run \
     -v /var/run/docker.sock:/var/run/docker.sock \

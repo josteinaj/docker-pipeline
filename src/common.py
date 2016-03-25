@@ -56,14 +56,18 @@ class Common:
             print(msg)
 
     @staticmethod
-    def list_files(directory):
+    def list_files(directory, shallow=False):
         files = []
-        for item in os.listdir(directory):
-            item_fullpath = os.path.join(directory, item)
-            if os.path.isfile(item_fullpath):
-                files.append(item_fullpath)
-            elif os.path.isdir(item_fullpath):
-                files.extend(list_files(item_fullpath))
+        if os.path.isdir(directory):
+            for item in os.listdir(directory):
+                item_fullpath = os.path.join(directory, item)
+                if os.path.isfile(item_fullpath):
+                    files.append(item_fullpath)
+                elif os.path.isdir(item_fullpath):
+                    if not shallow:
+                        files.extend(list_files(item_fullpath))
+        else:
+            files.append(directory)
         return files
 
     @staticmethod
@@ -101,18 +105,13 @@ class Common:
             new_volume = Common.host_path(volume)
             if new_volume:
                 host_volumes[new_volume] = volumes[volume]
-        volumes_list = [host_volumes[v]['bind'] for v in host_volumes]
-        container = docker_client.create_container(image,
-                                                   volumes=volumes_list,
-                                                   host_config=docker_client.create_host_config(binds=host_volumes))
+        container = docker_client.create_container(image, host_config=docker_client.create_host_config(binds=host_volumes))
         docker_client.start(container=container)
+        log_stream = docker_client.logs(container=container, stream=True)
+        for line in log_stream:
+            Common.message(line)
         docker_client.wait(container=container)
-        logs = docker_client.logs(container=container)
         docker_client.remove_container(container=container)
-        
-        log = logs.decode('utf-8')
-        if log:
-            Common.message(log)
 
     @staticmethod
     def host_path(path):

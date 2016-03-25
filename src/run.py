@@ -28,8 +28,8 @@ def main(argv):
     else:
         pipeline.run()
     
-    Common.message('Printing pipeline...')
-    pipeline.dump()
+    #Common.message('Printing pipeline...')
+    #pipeline.dump()
 
 
 if __name__ == "__main__":
