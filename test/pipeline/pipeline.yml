@@ -1,6 +1,7 @@
-name: Example Pipeline
+name: Test Pipeline
 pipeline:
   - test:
+      #focus: true
       input: input-1
       expect: expect-1
   - test:
@@ -70,4 +71,50 @@ pipeline:
   - test:
       input: input-2
       expect: expect-fib-13
-   
+  
+  # if/else with status=success
+  - dockerfile: identity
+    command: "success"
+  - assert: success
+  - if success:
+      - dockerfile: identity
+        command: "if"
+  - elif failed:
+      - dockerfile: identity
+        command: "elif"
+  - else:
+      - dockerfile: identity
+        command: "else"
+  - assert: if
+
+  # if/else with status=failed
+  - dockerfile: identity
+    command: "failed"
+  - if success:
+      - dockerfile: identity
+        command: "if"
+  - elif failed:
+      - dockerfile: identity
+        command: "elif"
+  - else:
+      - dockerfile: identity
+        command: "else"
+  - assert: elif
+  
+  # if/else with no status
+  - dockerfile: identity
+  - if success:
+      - dockerfile: identity
+        command: "if"
+  - else:
+      - dockerfile: identity
+        command: "else"
+  - assert: else
+  
+  # if with no status and no else
+  - dockerfile: identity
+  - if success:
+      - dockerfile: identity
+        command: "if"
+  - assert: ""
+  

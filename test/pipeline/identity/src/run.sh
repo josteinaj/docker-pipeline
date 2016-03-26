@@ -2,4 +2,6 @@
 
 cp -r /mnt/input/* /mnt/output/
 
-echo "success" > /mnt/status/status.txt
+if [ $# -gt 0 ]; then
+    echo "$1" > /mnt/status/status.txt
+fi

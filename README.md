@@ -19,12 +19,10 @@ v0.2:
 - [x] Testing with `assert` as alias for `test` with `*`  and `status`
 
 v0.3:
-- [ ] full support for pipeline definition grammar
-  - [ ] support `if`, `elif` and `else`
-  - [x] support `foreach`
-  - [x] support `unfold`
-  - [ ] support `synchronized`
-  - [ ] support `exit`
+- [x] support `if`, `elif` and `else`
+- [x] support `foreach`
+- [x] support `unfold`
+- [ ] support `exit`
 
 v0.4:
 - [ ] Watches a folder for new input files and directories. Automatically passes it into the pipeline.
@@ -37,13 +35,11 @@ v0.5:
   - [ ] how much CPU/memory is used by each docker container
   - [ ] showing last 10 processed items
 
-v0.6:
+v0.x:
 - [ ] Pipelines with no input can be triggered with HTTP POST/GET requests.
-
-v0.7:
+- [ ] support parallel processing
+- [ ] support `synchronized` keyword
 - [ ] Ability to delegate processing to other servers than localhost.
-
-v0.8:
 - [ ] Support multiple pipelines
 
 ## Docker image requirements

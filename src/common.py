@@ -5,6 +5,8 @@ import re
 from pprint import pprint
 from slacker import Slacker
 import yaml
+from yaml.composer import Composer
+from yaml.constructor import Constructor
 import gettext
 import docker
 import hashlib
@@ -75,8 +77,30 @@ class Common:
         config = None
         if os.path.exists(path):
             try:
-                with open(path, 'r') as path:
-                    config = yaml.load(path)
+                with open(path, 'r') as file:
+                    basename = os.path.basename(path)
+                    loader = yaml.Loader(file.read())
+                    def compose_node(parent, index):
+                        # the line number where the previous token has ended (plus empty lines)
+                        line = loader.line
+                        column = loader.column
+                        node = Composer.compose_node(loader, parent, index)
+                        node.__line__ = line + 1
+                        node.__column__ = column + 1
+                        node.__basename__ = basename
+                        node.__location__ = basename+":"+str(line + 1)
+                        return node
+                    def construct_mapping(node, deep=False):
+                        mapping = Constructor.construct_mapping(loader, node, deep=deep)
+                        mapping['__line__'] = node.__line__
+                        mapping['__column__'] = node.__column__
+                        mapping['__basename__'] = node.__basename__
+                        mapping['__location__'] = node.__location__
+                        return mapping
+                    loader.compose_node = compose_node
+                    loader.construct_mapping = construct_mapping
+                    config = loader.get_single_data()
+                    
             except (yaml.error.YAMLError, yaml.reader.ReaderError, yaml.scanner.ScannerError) as e:
                 message(e)
             except (yaml.parser.ParserError, yaml.composer.ComposerError, yaml.constructor.ConstructorError) as e:
@@ -98,14 +122,14 @@ class Common:
         return image_id
 
     @staticmethod
-    def docker_run(image, volumes):
+    def docker_run(image, volumes, command=None):
         container_details = docker_client.inspect_container(docker_container_id)
         host_volumes = {}
         for volume in volumes:
             new_volume = Common.host_path(volume)
             if new_volume:
                 host_volumes[new_volume] = volumes[volume]
-        container = docker_client.create_container(image, host_config=docker_client.create_host_config(binds=host_volumes))
+        container = docker_client.create_container(image, host_config=docker_client.create_host_config(binds=host_volumes), command=command)
         docker_client.start(container=container)
         log_stream = docker_client.logs(container=container, stream=True)
         for line in log_stream:
@@ -132,3 +156,11 @@ class Common:
                 buf = f.read(blocksize)
             return hasher.digest()
         return None
+    
+    @staticmethod
+    def first_line(path):
+        for root, subdirs, files in os.walk(path):
+            for file in files:
+                with open(root+'/'+file, 'r') as f:
+                    return f.readline().strip()
+        return ""

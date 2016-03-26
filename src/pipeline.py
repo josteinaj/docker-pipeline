@@ -10,7 +10,7 @@ import shutil
 
 class Pipeline:
     
-    def __init__(self, path, host_path, pipeline=None):
+    def __init__(self, path, host_path, pipeline=None, start_location=None):
         self.path = path
         self.host_path = host_path
         if pipeline:
@@ -18,58 +18,161 @@ class Pipeline:
         else:
             Common.message("host_path: "+host_path)
             self.pipeline = Common.load_yaml(path)
+        if start_location:
+            self.location = start_location
+        elif '__location__' in self.pipeline:
+            self.location = self.pipeline['__location__']
+        else:
+            os.path.basename(self.path)+":1"
         self.steps = []
         self.tests = {}
         for step in self.pipeline['pipeline']:
-            if isinstance(step, dict):
-                if 'dockerfile' in step:
-                    image_id = Common.docker_build(os.path.dirname(path)+"/"+step['dockerfile']+"/")
-                    self.steps.append({'image':{'name':step['dockerfile'], 'id':image_id}})
-                    
-                elif 'unfold' in step:
-                    self.steps.append({'unfold':{'name':'unfold', 'depth':step['unfold']}})
+            if not isinstance(step, dict):
+                step = { step: '' }
+            
+            step_line = [key for key in list(step.keys()) if not key.startswith('_')]
+            step_line = None if len(step_line) == 0 else step_line[0]
+            
+            if 'image' in step:
+                image = { 'location': str(step['__location__']), 'name': step['image'], 'id': step['image'] }
+                if 'command' in step:
+                    image['command'] = step['command']
+                self.steps.append({ 'image': image })
+            
+            elif 'dockerfile' in step:
+                image_id = Common.docker_build(os.path.dirname(path)+"/"+step['dockerfile']+"/")
+                image = { 'location': str(step['__location__']), 'name': step['dockerfile'], 'id': image_id }
+                if 'command' in step:
+                    image['command'] = step['command']
+                self.steps.append({ 'image': image })
                 
-                elif 'test' in step:
-                    if not 'input' in step['test']:
-                        step['test']['input'] = '*'
-                    test_input = step['test']['input']
-                    
+            elif 'unfold' in step:
+                self.steps.append({'unfold':{'location': str(step['__location__']), 'name':'unfold', 'depth':step['unfold']}})
+            
+            elif 'test' in step:
+                test_input = '*' if not 'input' in step['test'] else step['test']['input']
+                test = { 'location': str(step['__location__']), 'name': test_input }
+                for key in ['input', 'expect', 'status', 'focus', 'context']:
+                    if key in step['test']:
+                        test[key] = step['test'][key]
+                
+                if not test_input in self.tests:
+                    self.tests[test_input] = {}
+                self.tests[test_input][str(len(self.steps))] = test
+                self.steps.append({ 'test': test })
+            
+            elif 'assert' in step:
+                assertion = { 'test': { 'location': str(step['__location__']), 'name': '*', 'input': '*', 'status': step['assert'] if not step['assert'] == None else "" }}
+                if not '*' in self.tests:
+                    self.tests['*'] = {}
+                self.tests['*'][str(len(self.steps))] = assertion['test']
+                self.steps.append(assertion)
+            
+            elif step_line.startswith('if'):
+                test = step_line[2:].split(":",1)[0].strip()
+                subpipeline_name = 'pipeline' if not 'name' in self.pipeline['pipeline'] else self.pipeline['pipeline']['name']
+                subpipeline_if = Pipeline(
+                                           self.path,
+                                           self.host_path,
+                                           pipeline={
+                                               'name': subpipeline_name,
+                                               'pipeline': step[step_line]
+                                           },
+                                           start_location=step['__location__']
+                                       )
+                subpipeline_else = Pipeline(
+                                           self.path,
+                                           self.host_path,
+                                           pipeline={
+                                               'name': subpipeline_name,
+                                               'pipeline': []
+                                           },
+                                           start_location=step['__location__']
+                                       )
+                for test_input in subpipeline_if.tests:
                     if not test_input in self.tests:
                         self.tests[test_input] = {}
-                    self.tests[test_input][str(len(self.steps))] = step['test']
-                    step['test']['name'] = test_input
-                    self.steps.append(step)
-                
-                elif 'assert' in step:
-                    assertion = { 'test': { 'name': '*', 'input': '*', 'status': step['assert'] }}
-                    if not '*' in self.tests:
-                        self.tests['*'] = {}
-                    self.tests['*'][str(len(self.steps))] = assertion['test']
-                    self.steps.append(assertion)
-                
-                elif 'foreach' in step:
-                    subpipeline_name = 'pipeline' if not 'name' in self.pipeline['pipeline'] else self.pipeline['pipeline']['name']
-                    subpipeline = Pipeline(
-                                               self.path,
-                                               self.host_path,
-                                               pipeline={
-                                                   'name': subpipeline_name,
-                                                   'pipeline': step['foreach']
-                                               }
-                                           )
-                    for test_input in subpipeline.tests:
-                        if not test_input in self.tests:
-                            self.tests[test_input] = {}
-                        for subtest_id in subpipeline.tests[test_input]:
-                            self.tests[test_input][str(len(self.steps))+'.'+subtest_id] = subpipeline.tests[test_input][subtest_id]
-                    self.steps.append({ 'foreach': { 'name': subpipeline_name, 'pipeline': subpipeline }})
-                
-                else:
-                    Common.message("WARNING: unknown step type: dictionary with key '"+list(step.keys())[0]+"' (skipping!)")
+                    for subtest_id in subpipeline_if.tests[test_input]:
+                        self.tests[test_input][str(len(self.steps))+'.'+subtest_id] = subpipeline_if.tests[test_input][subtest_id]
+                self.steps.append({ 'choose':
+                                    { 'location': str(step['__location__']),
+                                      'choices': [
+                                        { 'when': {
+                                            'location': str(step['__location__']),
+                                            'test': test,
+                                            'pipeline': subpipeline_if
+                                        }},
+                                        { 'otherwise': {
+                                            'location': str(step['__location__']),
+                                            'pipeline': subpipeline_else
+                                        }}
+                                      ]
+                                    }
+                                  })
+            
+            elif step_line.startswith('elif'):
+                choose = self.steps[len(self.steps)-1]
+                test = step_line[4:].split(":",1)[0].strip()
+                subpipeline_name = 'pipeline' if not 'name' in self.pipeline['pipeline'] else self.pipeline['pipeline']['name']
+                subpipeline_elif = Pipeline(
+                                           self.path,
+                                           self.host_path,
+                                           pipeline={
+                                               'name': subpipeline_name,
+                                               'pipeline': step[step_line]
+                                           },
+                                           start_location=step['__location__']
+                                       )
+                for test_input in subpipeline_elif.tests:
+                    if not test_input in self.tests:
+                        self.tests[test_input] = {}
+                    for subtest_id in subpipeline_elif.tests[test_input]:
+                        self.tests[test_input][str(len(self.steps))+'.'+subtest_id] = subpipeline_elif.tests[test_input][subtest_id]
+                when = { 'when': { 'location': str(step['__location__']), 'test': test, 'pipeline': subpipeline_elif } }
+                choose['choose']['choices'].insert(len(choose['choose']['choices'])-1, when)
+            
+            elif 'else' in step:
+                choose = self.steps[len(self.steps)-1]
+                subpipeline_name = 'pipeline' if not 'name' in self.pipeline['pipeline'] else self.pipeline['pipeline']['name']
+                subpipeline_else = Pipeline(
+                                           self.path,
+                                           self.host_path,
+                                           pipeline={
+                                               'name': subpipeline_name,
+                                               'pipeline': step['else']
+                                           },
+                                           start_location=step['__location__']
+                                       )
+                for test_input in subpipeline_else.tests:
+                    if not test_input in self.tests:
+                        self.tests[test_input] = {}
+                    for subtest_id in subpipeline_else.tests[test_input]:
+                        self.tests[test_input][str(len(self.steps))+'.'+subtest_id] = subpipeline_else.tests[test_input][subtest_id]
+                otherwise = { 'otherwise': { 'location': str(step['__location__']), 'pipeline': subpipeline_else } }
+                choose['choose']['choices'][len(choose['choose']['choices'])-1] = otherwise
+            
+            elif 'foreach' in step:
+                subpipeline_name = 'pipeline' if not 'name' in self.pipeline['pipeline'] else self.pipeline['pipeline']['name']
+                subpipeline = Pipeline(
+                                           self.path,
+                                           self.host_path,
+                                           pipeline={
+                                               'name': subpipeline_name,
+                                               'pipeline': step['foreach']
+                                           },
+                                           start_location=step['__location__']
+                                       )
+                for test_input in subpipeline.tests:
+                    if not test_input in self.tests:
+                        self.tests[test_input] = {}
+                    for subtest_id in subpipeline.tests[test_input]:
+                        self.tests[test_input][str(len(self.steps))+'.'+subtest_id] = subpipeline.tests[test_input][subtest_id]
+                self.steps.append({ 'foreach': { 'location': str(step['__location__']), 'name': subpipeline_name, 'pipeline': subpipeline }})
+            
             else:
-                self.steps.append({ 'image': { 'name': step, 'id': step }})
+                Common.message("WARNING: unknown step type: dictionary with key '"+step_line+"' (skipping!)")
 
-    def run(self, config_path, input_path, output_path, status_path, test=None, step_id='', step_depth=0):
+    def run(self, config_path, input_path, output_path, status_path, status="", test=None, step_id='', step_depth=0):
         temp_path = tempfile.mkdtemp(prefix='pipeline-')
         
         tests_run = 0
@@ -77,21 +180,24 @@ class Pipeline:
         tests_skipped = 0
         
         pipeline_context_name = os.path.basename(input_path)
-        padding = "".ljust(10+step_depth*2)
+        padding = (self.location if len(self.steps) == 0 else self.steps[0][list(self.steps[0].keys())[0]]['location']).ljust(20+step_depth*2)
         Common.message(padding+'-- Context is: '+pipeline_context_name)
         
         current_input_path = None
         current_output_path = None
         current_status_path = None
+        
         position = 0
         step_count = len([ step_object for step_object in self.steps if (list(step_object.keys())[0] != 'test' and list(step_object.keys())[0] != 'assert') ])
         for step_object in self.steps:
             step_type = list(step_object.keys())[0]
             step = step_object[step_type]
+            padding = step['location'].ljust(20+step_depth*2)
+            current_status = status if not current_status_path else Common.first_line(current_status_path)
             
             if step_type != 'test' and step_type != 'assert':
                 current_step_id = step_id+'/'+str(position)
-                Common.message(current_step_id.ljust(10+step_depth*2)+'-- Running '+step_type+': '+step['name'])
+                Common.message(padding+'-- Running '+step_type+': '+(step_type if not 'name' in step else step['name']))
                 
                 if position > 0:
                     current_input_path = current_output_path
@@ -115,11 +221,23 @@ class Pipeline:
                     volumes[current_output_path] = { 'bind': '/mnt/output', 'mode': 'rw' }
                     volumes[current_status_path] = { 'bind': '/mnt/status', 'mode': 'rw' }
                     
-                    Common.docker_run(step['id'], volumes)
+                    command = None if not 'command' in step else step['command']
+                    
+                    Common.docker_run(step['id'], volumes, command=command)
+                
+                elif step_type == 'choose':
+                    for when in step['choices']:
+                        when_key = list(when.keys())[0]
+                        if (not 'test' in when[when_key]) or when[when_key]['test'] == current_status:
+                            result = when[when_key]['pipeline'].run(config_path, file_or_dir, current_output_path, current_status_path, status=current_status, test=test, step_id=current_step_id, step_depth=step_depth+1)
+                            tests_skipped += result['tests']['skipped']
+                            tests_run += result['tests']['run']
+                            tests_failed += result['tests']['failed']
+                            break
                 
                 elif step_type == 'foreach':
                     for file_or_dir in Common.list_files(current_input_path):
-                        result = step['pipeline'].run(config_path, file_or_dir, current_output_path+'/'+os.path.basename(file_or_dir), current_status_path, test=test, step_id=current_step_id, step_depth=step_depth+1)
+                        result = step['pipeline'].run(config_path, file_or_dir, current_output_path+'/'+os.path.basename(file_or_dir), current_status_path, status=current_status, test=test, step_id=current_step_id, step_depth=step_depth+1)
                         tests_skipped += result['tests']['skipped']
                         tests_run += result['tests']['run']
                         tests_failed += result['tests']['failed']
@@ -224,16 +342,11 @@ class Pipeline:
                     if 'status' in step:
                         if not current_status_path:
                             Common.message(padding+"   ERROR: no status directory available")
-                        actual_status = None
-                        for root, subdirs, files in os.walk(current_status_path):
-                            for file in files:
-                                with open(root+'/'+file, 'r') as f:
-                                    actual_status = f.readline().strip()
-                                    break
-                            if actual_status:
-                                break
-                        if actual_status != step['status']:
-                            Common.message(padding+"   FAILED: actual status and expected status differ: \n  expected: "+step['status']+"\n    actual: "+actual_status)
+                        expected_status = '' if step['status'] == None else str(step['status'])
+                        if current_status != expected_status:
+                            Common.message(padding+"   FAILED: actual status and expected status differ:")
+                            Common.message(padding+"     expected: "+expected_status)
+                            Common.message(padding+"       actual: "+current_status)
                             success = False
                     
                     if not success:
