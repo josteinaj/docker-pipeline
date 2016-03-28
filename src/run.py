@@ -28,9 +28,6 @@ def main(argv):
     else:
         pipeline.run()
     
-    #Common.message('Printing pipeline...')
-    #pipeline.dump()
-
 
 if __name__ == "__main__":
     main(sys.argv[1:])

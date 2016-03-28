@@ -22,7 +22,7 @@ v0.3:
 - [x] support `if`, `elif` and `else`
 - [x] support `foreach`
 - [x] support `unfold`
-- [ ] support `exit`
+- [x] support `exit`
 
 v0.4:
 - [ ] Watches a folder for new input files and directories. Automatically passes it into the pipeline.
@@ -122,7 +122,7 @@ sub-pipeline inside the `synchronized` block.
 
 ### Stopping execution
 
-The `exit` instructioncan be used to stop execution of the pipeline.
+The `exit` instruction can be used to stop execution of the pipeline.
 Combine it with `if` to conditionally stop execution.
 
 ### Testing pipelines

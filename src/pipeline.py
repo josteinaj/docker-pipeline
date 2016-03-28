@@ -27,8 +27,12 @@ class Pipeline:
         self.steps = []
         self.tests = {}
         for step in self.pipeline['pipeline']:
-            if not isinstance(step, dict):
-                step = { step: '' }
+            if isinstance(step, str):
+                if step == "exit":
+                    self.steps.append({ 'exit': { 'location': self.location.split(':',1)[0] }})
+                else:
+                    Common.message("WARNING: unknown instruction found: '"+step+"' (skipping!)")
+                continue
             
             step_line = [key for key in list(step.keys()) if not key.startswith('_')]
             step_line = None if len(step_line) == 0 else step_line[0]
@@ -186,13 +190,39 @@ class Pipeline:
         current_input_path = None
         current_output_path = None
         current_status_path = None
+        current_status = ''
         
+        exit = False
         position = 0
         step_count = len([ step_object for step_object in self.steps if (list(step_object.keys())[0] != 'test' and list(step_object.keys())[0] != 'assert') ])
+        if step_count == 0:
+            current_status = status
+            current_input_path = input_path
+            current_output_path = output_path
+            current_status_path = status_path
+            if status != None:
+                Common.write_file(current_status_path+'/status.txt', status)
+            if os.path.isdir(current_input_path):
+                for item in os.listdir(current_input_path):
+                    item_fullpath = os.path.join(current_input_path, item)
+                    if os.path.isdir(item_fullpath):
+                        shutil.copytree(item_fullpath, current_output_path+'/'+os.path.basename(item_fullpath))
+                    else:
+                        shutil.copy2(item_fullpath, current_output_path+'/'+os.path.basename(item_fullpath))
+            else:
+                shutil.copy2(current_input_path, current_output_path+'/'+os.path.basename(current_input_path))
+            
         for step_object in self.steps:
             step_type = list(step_object.keys())[0]
             step = step_object[step_type]
             padding = step['location'].ljust(20+step_depth*2)
+            
+            if exit or step_type == 'exit':
+                if step_type == 'exit':
+                    Common.message(padding+'-- Exiting')
+                exit = True
+                break
+            
             current_status = status if not current_status_path else Common.first_line(current_status_path)
             
             if step_type != 'test' and step_type != 'assert':
@@ -230,6 +260,7 @@ class Pipeline:
                         when_key = list(when.keys())[0]
                         if (not 'test' in when[when_key]) or when[when_key]['test'] == current_status:
                             result = when[when_key]['pipeline'].run(config_path, file_or_dir, current_output_path, current_status_path, status=current_status, test=test, step_id=current_step_id, step_depth=step_depth+1)
+                            exit = exit or result['exit']
                             tests_skipped += result['tests']['skipped']
                             tests_run += result['tests']['run']
                             tests_failed += result['tests']['failed']
@@ -238,6 +269,7 @@ class Pipeline:
                 elif step_type == 'foreach':
                     for file_or_dir in Common.list_files(current_input_path):
                         result = step['pipeline'].run(config_path, file_or_dir, current_output_path+'/'+os.path.basename(file_or_dir), current_status_path, status=current_status, test=test, step_id=current_step_id, step_depth=step_depth+1)
+                        exit = exit or result['exit']
                         tests_skipped += result['tests']['skipped']
                         tests_run += result['tests']['run']
                         tests_failed += result['tests']['failed']
@@ -340,8 +372,6 @@ class Pipeline:
                             Common.message(padding+"   EXPECTED: "+expected_compact)
                     
                     if 'status' in step:
-                        if not current_status_path:
-                            Common.message(padding+"   ERROR: no status directory available")
                         expected_status = '' if step['status'] == None else str(step['status'])
                         if current_status != expected_status:
                             Common.message(padding+"   FAILED: actual status and expected status differ:")
@@ -354,6 +384,7 @@ class Pipeline:
                     tests_run += 1
                     
         return {
+            'exit': exit,
             'tests': {
                 'skipped': tests_skipped,
                 'run': tests_run,
@@ -407,9 +438,3 @@ class Pipeline:
         Common.message("TESTS RUN: "+str(tests_run))
         Common.message("TESTS FAILED: "+str(tests_failed))
         #Common.message("TESTS SKIPPED: "+str(tests_skipped))
-
-    def dump(self):
-        #pprint(self.config)
-        #pprint(self.steps)
-        #pprint(self.tests)
-        pass

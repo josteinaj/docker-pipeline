@@ -164,3 +164,9 @@ class Common:
                 with open(root+'/'+file, 'r') as f:
                     return f.readline().strip()
         return ""
+    
+    @staticmethod
+    def write_file(path, text):
+        with open(path, 'w') as f:
+           f.write(text)
+           f.close() 
