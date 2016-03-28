@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{ name }} - docker-pipeline</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0-beta1/jquery.js"></script>
+</head>
+<body>
+    <h1>{{ name }}</h1>
+    <p>This is the docker-pipeline web view for the pipeline "{{ name }}".</p>
+    <div id="pipeline"></div>
+    
+    <script>
+    var pipeline = {{ pipeline|tojson }};
+    
+    function renderPipeline(pipeline, container) {
+        var ol = $("<ol></ol>");
+        for (var s = 0; s < pipeline.length; s++) {
+            var type = Object.keys(pipeline[s])[0];
+            var step = pipeline[s][type];
+            var li = $("<li></li>");
+            console.log(type);
+            if ("image" === type) {
+                li.html("Run docker image: "+step.name+(step.command?" with \""+step.command+"\"":""));
+                
+            } else if ("choose" === type) {
+                for (var c = 0; c < step.choices.length; c++) {
+                    var choice_type = Object.keys(step.choices[c])[0]
+                    var choice = step.choices[c][choice_type];
+                    var choice_name = choice_type;
+                    if ("when" === choice_type) {
+                        choice_name = c === 0 ? "if" : "else if";
+                    }
+                    
+                    var subpipeline_title = $("<p>"+choice_name+(choice_type==="when"?" \""+choice.test+"\"":"")+"</p>");
+                    var subpipeline_container = $("<div></div>");
+                    if (choice.pipeline.length === 0) {
+                        subpipeline_container.html("<ol><li><em>Do nothing</em></li></ol>");
+                    } else {
+                        renderPipeline(choice.pipeline, subpipeline_container);
+                    }
+                    li.append(subpipeline_title);
+                    li.append(subpipeline_container);
+                }
+                
+            } else if ("foreach" === type) {
+                var subpipeline_title = $("<p>foreach</p>");
+                var subpipeline_container = $("<div></div>");
+                if (step.pipeline.length === 0) {
+                    subpipeline_container.html("<ol><li><em>Do nothing</em></li></ol>");
+                } else {
+                    renderPipeline(step.pipeline, subpipeline_container);
+                }
+                li.append(subpipeline_title);
+                li.append(subpipeline_container);
+            
+            } else if ("unfold" === type) {
+                li.html("Unfold "+step.depth+" layer"+(step.depth>1?"s":""));
+            
+            } else if ("exit" === type) {
+                li.html("Exit");
+            
+            } else {
+                li.html("Unknown step type: "+JSON.stringify(pipeline[s]));
+            }
+            ol.append(li);
+        }
+        console.log(container);
+        $(container).append(ol);
+    }
+    renderPipeline(pipeline, document.getElementById("pipeline"));
+    </script>
+</body>
+</html>

@@ -438,3 +438,28 @@ class Pipeline:
         Common.message("TESTS RUN: "+str(tests_run))
         Common.message("TESTS FAILED: "+str(tests_failed))
         #Common.message("TESTS SKIPPED: "+str(tests_skipped))
+    
+    def get_serializable(self, tests=False):
+        steps = self.steps
+        if not tests:
+            steps = [ step for step in self.steps if (list(step.keys())[0] != 'test' and list(step.keys())[0] != 'assert')]
+        return self.__get_serializable(steps, tests=False)
+    
+    def __get_serializable(self, obj, tests=False):
+        if isinstance(obj, list):
+            serializable_list = []
+            for item in obj:
+                serializable_list.append(self.__get_serializable(item, tests=False))
+            return serializable_list
+            
+        elif isinstance(obj, dict):
+            serializable_dict = {}
+            for key in obj:
+                serializable_dict[key] = self.__get_serializable(obj[key], tests=False)
+            return serializable_dict
+            
+        elif isinstance(obj, Pipeline):
+            return obj.get_serializable(tests=False)
+            
+        else:
+            return obj

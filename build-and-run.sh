@@ -8,8 +8,8 @@ if [ "$1" = "test" ]; then
     PIPELINE_DIR="$DIR/test/pipeline"
 fi
 if [ "$PIPELINE_DIR" = "" ]; then
-    echo "PIPELINE_DIR not set"
-    exit 1
+    echo "PIPELINE_DIR not set; setting to test/pipeline"
+    PIPELINE_DIR="$DIR/test/pipeline"
 fi
 
 docker build . >/dev/null

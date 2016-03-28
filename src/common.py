@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 import re
 from pprint import pprint
 from slacker import Slacker
@@ -56,6 +57,7 @@ class Common:
             slack.chat.post_message(slack["channel"], msg, slack["botname"])
         else:
             print(msg)
+            sys.stdout.flush()
 
     @staticmethod
     def list_files(directory, shallow=False):

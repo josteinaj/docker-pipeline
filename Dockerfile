@@ -19,7 +19,9 @@ ENV LC_ALL C.UTF-8
 RUN apt-get update && apt-get install -y wget unzip curl vim
 RUN apt-get update && apt-get install -y python3-pip python3-yaml
 RUN apt-get update && apt-get install -y apt-transport-https ca-certificates
-RUN pip3 install slacker docker-py
+RUN pip3 install slacker docker-py Flask
+
+EXPOSE 5000
 
 VOLUME ["/tmp"]
 
